@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackstone Terminal v20 // Cloud Sync via Export/Import</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #05070a;
+            color: #f3f4f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .glow-blue { box-shadow: 0 0 20px rgba(59, 130, 246, 0.15); }
+        .glow-green { box-shadow: 0 0 20px rgba(16, 185, 129, 0.15); }
+        .glow-red { box-shadow: 0 0 20px rgba(239, 68, 68, 0.15); }
+        .glow-ai { box-shadow: 0 0 25px rgba(139, 92, 246, 0.15); }
+        .glass { background: rgba(10, 15, 25, 0.9); backdrop-filter: blur(14px); }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .tab-active { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border-color: #3b82f6; }
+        .tab-inactive { background: rgba(17, 24, 39, 0.6); color: #9ca3af; border-color: #1f2937; }
+        
+        select option {
+            background-color: #05070a;
+            color: #3b82f6;
+            padding: 8px;
+        }
+        ::-webkit-scrollbar { height: 6px; width: 6px; }
+        ::-webkit-scrollbar-track { background: #05070a; }
+        ::-webkit-scrollbar-thumb { background: #1e3a8a; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- HEADER / DASHBOARD BLACKSTONE -->
+        <header class="flex flex-col md:flex-row justify-between items-center glass p-6 rounded-2xl border border-blue-900/50 glow-blue">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-black tracking-wider text-blue-400 flex items-center gap-3">
+                    <span class="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
+                    Blackstone // 600$ → 1 042 827,90 € (S1-S46)
+                </h1>
+                <p class="text-sm text-gray-400 mt-1">Terminal de Trading Pro | Synchronisation Multi-Appareils (PC & Tel)</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex flex-wrap gap-3 text-center">
+                <div class="bg-gray-950/80 px-3 py-2 rounded-xl border border-gray-800">
+                    <div class="text-[10px] text-gray-400">Capital Initial</div>
+                    <div class="text-base font-bold text-gray-200">600,00 €</div>
+                </div>
+                <div class="bg-gray-950/80 px-3 py-2 rounded-xl border border-gray-800">
+                    <div class="text-[10px] text-gray-400">Capital Actuel</div>
+                    <div id="stat-current-cap" class="text-base font-bold text-blue-400">600,00 €</div>
+                </div>
+                <div class="bg-gray-950/80 px-3 py-2 rounded-xl border border-gray-800">
+                    <div class="text-[10px] text-gray-400">Progression</div>
+                    <div id="stat-progress" class="text-base font-bold text-emerald-400">0.0%</div>
+                </div>
+                <div class="bg-emerald-950/40 px-3 py-2 rounded-xl border border-emerald-900/60">
+                    <div class="text-[10px] text-emerald-400">Capital Surplus</div>
+                    <div id="stat-surplus" class="text-base font-bold text-emerald-400">+0,00 €</div>
+                </div>
+                <div class="bg-red-950/40 px-3 py-2 rounded-xl border border-red-900/60">
+                    <div class="text-[10px] text-red-400">Déficit / Retard</div>
+                    <div id="stat-deficit" class="text-base font-bold text-red-400">0,00 €</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- PROGRESS BAR -->
+        <div class="glass p-4 rounded-xl border border-gray-800">
+            <div class="flex justify-between text-sm mb-2 text-gray-400">
+                <span>600 €</span>
+                <span id="progress-label" class="text-blue-400 font-semibold">Objectif : 1 042 827,90 €</span>
+                <span>1.04 M€</span>
+            </div>
+            <div class="w-full bg-gray-950 h-3 rounded-full overflow-hidden border border-gray-800">
+                <div id="progress-bar" class="bg-gradient-to-r from-blue-600 via-emerald-500 to-green-400 h-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- GRAPH SECTION -->
+        <div class="glass p-6 rounded-2xl border border-gray-800 space-y-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-800 pb-3 gap-3">
+                <div>
+                    <h2 class="font-bold text-lg text-gray-200">Courbe d'Évolution (Objectif S1-S46)</h2>
+                    <p class="text-xs text-gray-400">Bleu = Capital Cible | Vert = Capital Surplus | Rouge = Capital Perte</p>
+                </div>
+                <div class="flex flex-wrap gap-2 items-center text-xs">
+                    <span class="text-gray-400 font-medium">Affichage :</span>
+                    <button onclick="setChartFilter('all')" id="filter-all" class="px-3 py-1 rounded bg-blue-600 text-white font-semibold transition">Tout</button>
+                    <button onclick="setChartFilter('current-week')" id="filter-current-week" class="px-3 py-1 rounded bg-gray-900 text-gray-300 border border-gray-700 hover:bg-gray-800 transition">Semaine Actuelle</button>
+                    <button onclick="setChartFilter('month')" id="filter-month" class="px-3 py-1 rounded bg-gray-900 text-gray-300 border border-gray-700 hover:bg-gray-800 transition">Mois</button>
+                </div>
+            </div>
+            <div class="relative h-72 md:h-80 w-full">
+                <canvas id="evolutionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- SEMAINES NAVIGATION TABS -->
+        <div id="week-tabs" class="flex overflow-x-auto gap-2 pb-2"></div>
+
+        <!-- WEEK CONTENT CONTAINER -->
+        <div id="week-container" class="space-y-4"></div>
+
+        <!-- CALENDRIER CENTRALISÉ -->
+        <div class="glass p-6 rounded-2xl border border-blue-950 glow-blue space-y-5">
+            <div class="flex justify-center items-center border-b border-gray-800 pb-4">
+                <div class="flex items-center gap-3">
+                    <select id="cal-month-select" onchange="renderCalendar()" class="bg-transparent text-blue-400 font-black text-xl focus:outline-none cursor-pointer">
+                        <option value="9" selected>Octobre</option>
+                        <option value="10">Novembre</option>
+                        <option value="11">Décembre</option>
+                        <option value="0">Janvier</option>
+                        <option value="1">Février</option>
+                        <option value="2">Mars</option>
+                        <option value="3">Avril</option>
+                        <option value="4">Mai</option>
+                        <option value="5">Juin</option>
+                        <option value="6">Juillet</option>
+                        <option value="7">Août</option>
+                        <option value="8">Septembre</option>
+                    </select>
+                    <select id="cal-year-select" onchange="renderCalendar()" class="bg-transparent text-blue-400 font-black text-xl focus:outline-none cursor-pointer">
+                        <!-- Généré de 2026 à 2060 -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- EN-TÊTES JOURS DE LA SEMAINE -->
+            <div class="grid grid-cols-7 gap-2 text-center text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-950/60 p-2 rounded-xl border border-gray-800">
+                <div>Lundi</div>
+                <div>Mardi</div>
+                <div>Mercredi</div>
+                <div>Jeudi</div>
+                <div>Vendredi</div>
+                <div>Samedi</div>
+                <div>Dimanche</div>
+            </div>
+
+            <!-- GRILLE DU CALENDRIER -->
+            <div id="calendar-grid" class="grid grid-cols-7 gap-2"></div>
+        </div>
+
+        <!-- SYNCHRO & RESET ACTIONS -->
+        <div class="glass p-4 rounded-xl border border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex flex-wrap gap-3">
+                <button onclick="exportData()" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-xl text-xs transition shadow-lg shadow-blue-600/20 flex items-center gap-2">
+                    📤 Exporter la sauvegarde (Synchro Tel)
+                </button>
+                <label class="bg-purple-600 hover:bg-purple-500 text-white font-semibold px-4 py-2 rounded-xl text-xs transition shadow-lg shadow-purple-600/20 cursor-pointer flex items-center gap-2">
+                    📥 Importer une sauvegarde
+                    <input type="file" accept=".json" onchange="importData(event)" class="hidden">
+                </label>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="resetData()" class="text-xs bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-800 px-4 py-2 rounded-xl transition">Tout Réinitialiser</button>
+                <span class="text-xs text-gray-500">Stockage local actif</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODAL LIGHTBOX IMAGE ZOOM -->
+    <div id="image-modal" class="fixed inset-0 z-50 hidden bg-black/85 backdrop-blur-md flex justify-center items-center p-4">
+        <button onclick="closeModal()" class="absolute top-6 right-6 text-gray-300 hover:text-white bg-gray-900/80 border border-gray-700 rounded-full w-10 h-10 flex items-center justify-center text-lg font-bold transition shadow-lg">✕</button>
+        <button onclick="prevImage()" class="absolute left-6 md:left-12 text-white bg-gray-900/80 border border-gray-700 rounded-full w-12 h-12 flex items-center justify-center text-2xl hover:bg-blue-600 transition shadow-xl">❮</button>
+        
+        <div class="max-w-4xl max-h-[85vh] flex flex-col items-center">
+            <img id="modal-img-element" src="" class="max-w-full max-h-[75vh] object-contain rounded-xl border border-gray-800 shadow-2xl">
+            <div id="modal-counter" class="text-xs text-gray-400 mt-3 font-mono">Image 1 sur 1</div>
+        </div>
+
+        <button onclick="nextImage()" class="absolute right-6 md:right-12 text-white bg-gray-900/80 border border-gray-700 rounded-full w-12 h-12 flex items-center justify-center text-2xl hover:bg-blue-600 transition shadow-xl">❯</button>
+    </div>
+
+    <script>
+        const planData = [
+    { day: 1, week: 1, name: 'Jeudi (1er Oct)', targetCap: 660.48, targetProf: 60.48, initialCap: 600.0, remarks: '' },
+    { day: 2, week: 1, name: 'Vendredi', targetCap: 753.67, targetProf: 93.19, initialCap: 660.48, remarks: '' },
+    { day: 3, week: 1, name: 'Lundi', targetCap: 870.42, targetProf: 116.74, initialCap: 753.67, remarks: '' },
+    { day: 4, week: 1, name: 'Mardi', targetCap: 1005.25, targetProf: 134.83, initialCap: 870.42, remarks: '' },
+    { day: 5, week: 1, name: 'Vendredi', targetCap: 1093.31, targetProf: 88.06, initialCap: 1005.25, remarks: '' },
+    { day: 6, week: 2, name: 'Lundi', targetCap: 1203.51, targetProf: 110.21, initialCap: 1093.31, remarks: '' },
+    { day: 7, week: 2, name: 'Mardi', targetCap: 1373.33, targetProf: 169.82, initialCap: 1203.51, remarks: '' },
+    { day: 8, week: 2, name: 'Mercredi', targetCap: 1586.05, targetProf: 212.73, initialCap: 1373.33, remarks: '' },
+    { day: 9, week: 2, name: 'Jeudi', targetCap: 1831.73, targetProf: 245.68, initialCap: 1586.05, remarks: '' },
+    { day: 10, week: 2, name: 'Vendredi', targetCap: 1992.19, targetProf: 160.46, initialCap: 1831.73, remarks: '' },
+    { day: 11, week: 3, name: 'Lundi (Phase 2)', targetCap: 2212.93, targetProf: 220.73, initialCap: 1992.19, remarks: '' },
+    { day: 12, week: 3, name: 'Mardi', targetCap: 2525.17, targetProf: 312.24, initialCap: 2212.93, remarks: '' },
+    { day: 13, week: 3, name: 'Mercredi', targetCap: 2916.32, targetProf: 391.15, initialCap: 2525.17, remarks: '' },
+    { day: 14, week: 3, name: 'Jeudi', targetCap: 3368.06, targetProf: 451.74, initialCap: 2916.32, remarks: '' },
+    { day: 15, week: 3, name: 'Vendredi', targetCap: 3663.10, targetProf: 295.04, initialCap: 3368.06, remarks: '' },
+    { day: 16, week: 4, name: 'Lundi', targetCap: 4032.34, targetProf: 369.24, initialCap: 3663.10, remarks: '' },
+    { day: 17, week: 4, name: 'Mardi', targetCap: 4601.31, targetProf: 568.96, initialCap: 4032.34, remarks: '' },
+    { day: 18, week: 4, name: 'Mercredi', targetCap: 5314.05, targetProf: 712.74, initialCap: 4601.31, remarks: '' },
+    { day: 19, week: 4, name: 'Jeudi', targetCap: 6137.19, targetProf: 823.15, initialCap: 5314.05, remarks: '' },
+    { day: 20, week: 4, name: 'Vendredi', targetCap: 6674.81, targetProf: 537.62, initialCap: 6137.19, remarks: '' },
+    { day: 21, week: 5, name: 'Lundi', targetCap: 7347.63, targetProf: 672.82, initialCap: 6674.81, remarks: '' },
+    { day: 22, week: 5, name: 'Mardi', targetCap: 8384.38, targetProf: 1036.75, initialCap: 7347.63, remarks: '' },
+    { day: 23, week: 5, name: 'Mercredi', targetCap: 9683.13, targetProf: 1298.74, initialCap: 8384.38, remarks: '' },
+    { day: 24, week: 5, name: 'Jeudi', targetCap: 11183.04, targetProf: 1499.92, initialCap: 9683.13, remarks: '' },
+    { day: 25, week: 5, name: 'Vendredi', targetCap: 12162.68, targetProf: 979.63, initialCap: 11183.04, remarks: '' },
+    { day: 26, week: 6, name: 'Lundi', targetCap: 13388.67, targetProf: 1226.0, initialCap: 12162.68, remarks: '' },
+    { day: 27, week: 6, name: 'Mardi', targetCap: 15277.82, targetProf: 1889.14, initialCap: 13388.67, remarks: '' },
+    { day: 28, week: 6, name: 'Mercredi', targetCap: 17644.35, targetProf: 2366.53, initialCap: 15277.82, remarks: '' },
+    { day: 29, week: 6, name: 'Jeudi', targetCap: 20377.46, targetProf: 2733.11, initialCap: 17644.35, remarks: '' },
+    { day: 30, week: 6, name: 'Vendredi', targetCap: 22162.52, targetProf: 1785.07, initialCap: 20377.46, remarks: '' },
+    { day: 31, week: 7, name: 'Lundi', targetCap: 24396.51, targetProf: 2233.98, initialCap: 22162.52, remarks: '' },
+    { day: 32, week: 7, name: 'Mardi', targetCap: 27838.85, targetProf: 3442.35, initialCap: 24396.51, remarks: '' },
+    { day: 33, week: 7, name: 'Mercredi', targetCap: 32151.09, targetProf: 4312.24, initialCap: 27838.85, remarks: '' },
+    { day: 34, week: 7, name: 'Jeudi', targetCap: 37131.3, targetProf: 4980.2, initialCap: 32151.09, remarks: '' },
+    { day: 35, week: 7, name: 'Vendredi (Retrait 30k)', targetCap: 40384.0, targetProf: 3252.7, initialCap: 37131.3, remarks: 'Retrait de 30 000 € (Reste 10 384,00 €)' },
+    { day: 36, week: 8, name: 'Lundi (Phase 2)', targetCap: 11430.71, targetProf: 1046.71, initialCap: 10384.0, remarks: 'Début Phase 2 (de 10k à 50k)' },
+    { day: 37, week: 8, name: 'Mardi', targetCap: 13043.58, targetProf: 1612.87, initialCap: 11430.71, remarks: '' },
+    { day: 38, week: 8, name: 'Mercredi', targetCap: 15065.03, targetProf: 2021.45, initialCap: 13043.58, remarks: '' },
+    { day: 39, week: 8, name: 'Jeudi', targetCap: 17398.6, targetProf: 2333.57, initialCap: 15065.03, remarks: '' },
+    { day: 40, week: 8, name: 'Vendredi', targetCap: 18922.72, targetProf: 1524.12, initialCap: 17398.6, remarks: '' },
+    { day: 41, week: 9, name: 'Lundi', targetCap: 20830.13, targetProf: 1907.41, initialCap: 18922.72, remarks: '' },
+    { day: 42, week: 9, name: 'Mardi', targetCap: 23769.26, targetProf: 2939.13, initialCap: 20830.13, remarks: '' },
+    { day: 43, week: 9, name: 'Mercredi', targetCap: 27451.12, targetProf: 3681.86, initialCap: 23769.26, remarks: '' },
+    { day: 44, week: 9, name: 'Jeudi', targetCap: 31704.3, targetProf: 4253.18, initialCap: 27451.12, remarks: '' },
+    { day: 45, week: 9, name: 'Vendredi', targetCap: 34481.59, targetProf: 2777.29, initialCap: 31704.3, remarks: '' },
+    { day: 46, week: 10, name: 'Lundi', targetCap: 38302.15, targetProf: 3820.56, initialCap: 34481.59, remarks: '' },
+    { day: 47, week: 10, name: 'Mardi', targetCap: 43706.58, targetProf: 5404.43, initialCap: 38302.15, remarks: '' },
+    { day: 48, week: 10, name: 'Mercredi (Retrait 40k)', targetCap: 50477.83, targetProf: 6771.25, initialCap: 43706.58, remarks: 'Atteint >50k ➔ Retrait 40k (Reste 10 477,83 €)' },
+    { day: 49, week: 10, name: 'Jeudi (6.5%)', targetCap: 11158.89, targetProf: 681.06, initialCap: 10477.83, remarks: 'Début Stratégie 6,5% quotidien' },
+    { day: 50, week: 10, name: 'Vendredi', targetCap: 11884.22, targetProf: 725.33, initialCap: 11158.89, remarks: '' },
+    ...Array.from({length: 175}, (_, i) => {
+        let dayNum = 51 + i;
+        let w = 11 + Math.floor(i / 5);
+        let dNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+        let dName = dNames[i % 5];
+        return { day: dayNum, week: w, name: dName, targetCap: 0, targetProf: 0, initialCap: 0, remarks: '' };
+    }),
+    { day: 226, week: 46, name: 'Lundi', targetCap: 810614209.66, targetProf: 49474106.7, initialCap: 761140102.96, remarks: '' },
+    { day: 227, week: 46, name: 'Mardi', targetCap: 863304133.29, targetProf: 52689923.63, initialCap: 810614209.66, remarks: '' },
+    { day: 228, week: 46, name: 'Mercredi', targetCap: 919418901.95, targetProf: 56114768.66, initialCap: 863304133.29, remarks: '' },
+    { day: 229, week: 46, name: 'Jeudi', targetCap: 979181130.58, targetProf: 59762228.63, initialCap: 919418901.95, remarks: '' },
+    { day: 230, week: 46, name: 'Vendredi (Fin)', targetCap: 1042827904.07, targetProf: 63646773.49, initialCap: 979181130.58, remarks: 'Fin de période (Début Juillet)' }
+];
+
+        (function fillIntermediateWeeks() {
+            let runningCap = 11884.22;
+            for(let i = 0; i < planData.length; i++) {
+                if (planData[i].day >= 51 && planData[i].day <= 225) {
+                    let initC = runningCap;
+                    let gain = Math.round(initC * 0.065 * 100) / 100;
+                    let finalC = Math.round((initC + gain) * 100) / 100;
+                    planData[i].initialCap = initC;
+                    planData[i].targetProf = gain;
+                    planData[i].targetCap = finalC;
+                    runningCap = finalC;
+                } else if (planData[i].day >= 226) {
+                    runningCap = planData[i].targetCap;
+                } else {
+                    runningCap = planData[i].targetCap;
+                }
+            }
+        })();
+
+        const tradingDates = {};
+        let currDate = new Date(2026, 9, 1);
+        planData.forEach(item => {
+            while (currDate.getDay() === 0 || currDate.getDay() === 6) {
+                currDate.setDate(currDate.getDate() + 1);
+            }
+            const y = currDate.getFullYear();
+            const m = String(currDate.getMonth() + 1).padStart(2, '0');
+            const d = String(currDate.getDate()).padStart(2, '0');
+            tradingDates[item.day] = `${y}-${m}-${d}`;
+            currDate.setDate(currDate.getDate() + 1);
+        });
+
+        let userInputs = JSON.parse(localStorage.getItem('trading_user_inputs_v20')) || {};
+        let activeWeek = 1;
+        let chartFilterMode = 'all';
+        let evolutionChart = null;
+        let activeRecognitions = {};
+
+        let currentModalImages = [];
+        let currentModalIndex = 0;
+
+        function initApp() {
+            initYearSelector();
+            renderWeekTabs();
+            renderWeekContent();
+            initChart();
+            updateDashboard();
+            renderCalendar();
+        }
+
+        function initYearSelector() {
+            const yearSelect = document.getElementById('cal-year-select');
+            yearSelect.innerHTML = '';
+            for (let y = 2026; y <= 2060; y++) {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.innerText = y;
+                if (y === 2026) opt.selected = true;
+                yearSelect.appendChild(opt);
+            }
+        }
+
+        function renderWeekTabs() {
+            const tabsContainer = document.getElementById('week-tabs');
+            tabsContainer.innerHTML = '';
+            for (let w = 1; w <= 46; w++) {
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-1.5 rounded-xl text-xs font-bold border whitespace-nowrap transition ${w === activeWeek ? 'tab-active shadow-lg shadow-blue-600/20' : 'tab-inactive hover:bg-gray-800'}`;
+                btn.innerText = `S${w}`;
+                btn.onclick = () => {
+                    activeWeek = w;
+                    renderWeekTabs();
+                    renderWeekContent();
+                };
+                tabsContainer.appendChild(btn);
+            }
+        }
+
+        function renderWeekContent() {
+            const container = document.getElementById('week-container');
+            container.innerHTML = '';
+
+            const weekDays = planData.filter(item => item.week === activeWeek);
+
+            const card = document.createElement('div');
+            card.className = "glass rounded-2xl border border-gray-800 p-5 space-y-6 shadow-xl";
+            
+            let html = `<div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                <h2 class="font-bold text-lg text-blue-400">Semaine ${activeWeek} // Journal & Galerie d'Images</h2>
+                <span class="text-xs text-gray-400">Valide ton journal pour générer la reformulation IA automatique</span>
+            </div><div class="space-y-6">`;
+
+            weekDays.forEach((item, idx) => {
+                const globalIdx = planData.findIndex(d => d.day === item.day);
+                const dayKey = `day_${item.day}`;
+                const data = userInputs[dayKey] || { profit: '', notes: '', images: [], validated: false };
+                
+                let realCap = '-';
+                let surplus = '-';
+                let surplusClass = 'text-gray-500';
+                let effectiveCap = 600.00;
+                
+                for(let i=0; i<=globalIdx; i++) {
+                    const v = userInputs[`day_${planData[i].day}`]?.profit;
+                    if(v !== undefined && v !== '') effectiveCap += parseFloat(v);
+                }
+
+                if (data.profit !== '' && !isNaN(data.profit)) {
+                    let prevCap = globalIdx === 0 ? 600.00 : (600.00 + cumulativeRealProfitBefore(globalIdx));
+                    let rCap = prevCap + parseFloat(data.profit);
+                    realCap = rCap.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' €';
+                    let s = parseFloat(data.profit) - item.targetProf;
+                    surplus = (s >= 0 ? '+' : '') + s.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' €';
+                    surplusClass = s >= 0 ? 'text-emerald-400' : 'text-red-400';
+                }
+
+                let lineRemain = Math.max(0, 1042827.90 - effectiveCap);
+
+                let imagesHtml = '';
+                const imgs = data.images || [];
+                if (imgs.length > 0) {
+                    imagesHtml = `<div class="grid grid-cols-2 gap-2 mt-2">`;
+                    imgs.forEach((imgSrc, imgIdx) => {
+                        imagesHtml += `
+                            <div class="relative group">
+                                <img src="${imgSrc}" class="h-20 w-full object-cover rounded-lg border border-gray-700 cursor-pointer hover:opacity-90 transition" onclick="openModalWithImages(${item.day}, ${imgIdx})">
+                                <button onclick="removeDayImage(${item.day}, ${imgIdx})" class="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 text-[9px] opacity-0 group-hover:opacity-100 transition">❌</button>
+                            </div>
+                        `;
+                    });
+                    imagesHtml += `</div>`;
+                } else {
+                    imagesHtml = `<p class="text-[11px] text-gray-500 italic mt-1">Aucune image chargée.</p>`;
+                }
+
+                let remarkBadge = item.remarks ? `<div class="text-[10px] text-amber-400 font-bold bg-amber-950/40 border border-amber-800 px-2 py-1 rounded mb-2">💡 ${item.remarks}</div>` : '';
+
+                html += `
+                <div class="bg-gray-950/80 border border-gray-800/90 rounded-2xl p-5 space-y-4">
+                    ${remarkBadge}
+                    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3 items-center text-xs border-b border-gray-800/60 pb-3">
+                        <div class="font-bold text-blue-400 text-sm">S${item.week} - J${item.day} (${item.name})</div>
+                        <div>
+                            <span class="text-gray-500 block text-[10px]">Capital Cible</span>
+                            <span class="font-mono text-gray-300">${item.targetCap.toLocaleString('fr-FR', {minimumFractionDigits: 2})} €</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block text-[10px]">Profit Cible</span>
+                            <span class="font-mono text-blue-400">+${item.targetProf.toLocaleString('fr-FR', {minimumFractionDigits: 2})} €</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block text-[10px]">Profit Réel (€)</span>
+                            <input type="number" step="any" value="${data.profit}" onchange="updateDayDataField(${item.day}, 'profit', this.value)" 
+                                class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-center font-mono text-emerald-400 font-bold focus:outline-none focus:border-emerald-500" placeholder="0.00">
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block text-[10px]">Capital Réel</span>
+                            <span class="font-mono text-gray-200 font-semibold">${realCap}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block text-[10px]">Surplus / Déficit</span>
+                            <span class="font-mono ${surplusClass} font-bold">${surplus}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block text-[10px]">Reste Global (1.04M)</span>
+                            <span class="font-mono text-gray-400">${lineRemain.toLocaleString('fr-FR', {minimumFractionDigits: 0})} €</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                        <!-- COLONNE GAUCHE : NOTES & REFORMULATION IA -->
+                        <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-3.5 space-y-3 flex flex-col justify-between">
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center text-xs font-semibold text-gray-300">
+                                    <span>📝 Pourquoi ce trade / Stratégie</span>
+                                    <button onclick="toggleVoiceInput(${item.day})" id="mic-btn-${item.day}" class="bg-gray-800 hover:bg-gray-700 text-purple-400 border border-purple-900/50 px-2.5 py-1 rounded-lg text-[11px] flex items-center gap-1.5 transition shadow" title="Cliquer pour parler, recliquer pour arrêter">
+                                        <span>🎙️ Dicter</span>
+                                    </button>
+                                </div>
+                                <div>
+                                    <textarea id="notes-${item.day}" rows="3" ${data.validated ? 'disabled' : ''} placeholder="Ex: Entrée sur cassure support H1, stop loss sous le dernier swing low..." class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500 disabled:opacity-75">${data.notes || ''}</textarea>
+                                </div>
+
+                                <div id="ai-reformulation-${item.day}">
+                                    ${data.validated ? generateAiReformulation(data.notes) : '<p class="text-[11px] text-gray-500 italic">La reformulation IA apparaîtra ici après validation.</p>'}
+                                </div>
+                            </div>
+
+                            <div class="flex gap-2 pt-3 border-t border-gray-800">
+                                <button onclick="editDayEntry(${item.day})" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold py-1.5 rounded-lg text-xs transition border border-gray-700">Modifier</button>
+                                <button onclick="validateDayEntry(${item.day})" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-1.5 rounded-lg text-xs transition shadow-lg shadow-purple-600/20">Valider</button>
+                            </div>
+                        </div>
+
+                        <!-- COLONNE DROITE : GALERIE MULTI-IMAGES -->
+                        <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-3.5 space-y-3 flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-center text-xs font-semibold text-gray-300 mb-2">
+                                    <span>📸 Galerie de Graphiques & Setups</span>
+                                    <span class="text-[10px] text-purple-400 font-bold">${imgs.length} image(s)</span>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-center cursor-pointer bg-purple-950/40 border border-purple-800/60 hover:bg-purple-900/40 text-purple-300 px-3 py-2 rounded-xl text-xs font-medium transition shadow">
+                                        📁 Sélectionner des captures d'écran
+                                        <input type="file" multiple accept="image/*" ${data.validated ? 'disabled' : ''} onchange="updateDayImages(${item.day}, event)" class="hidden">
+                                    </label>
+                                    <div class="text-[10px] text-gray-400 text-center italic">
+                                        ${imgs.length > 0 ? imgs.length + ' fichier(s) sélectionné(s)' : 'Aucun fichier sélectionné'}
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    ${imagesHtml}
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-purple-400/80 italic border-t border-gray-800 pt-2">
+                                Astuce : Clique sur une image pour l'ouvrir en grand sans quitter le site.
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+
+            html += `</div>`;
+            card.innerHTML = html;
+            container.appendChild(card);
+        }
+
+        // --- CALENDRIER ---
+        function renderCalendar() {
+            const month = parseInt(document.getElementById('cal-month-select').value);
+            const year = parseInt(document.getElementById('cal-year-select').value);
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            
+            let startDay = firstDay.getDay() - 1;
+            if (startDay === -1) startDay = 6;
+
+            for (let i = 0; i < startDay; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = "bg-gray-950/30 border border-gray-900 rounded-xl h-24 opacity-30";
+                grid.appendChild(emptyCell);
+            }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const currentDateObj = new Date(year, month, d);
+                const dayOfWeek = currentDateObj.getDay();
+                const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+                let cellBg = "bg-gray-950/85 border-gray-800 text-gray-300";
+                let contentHtml = `<span class="text-xs text-gray-500">-</span>`;
+
+                if (isWeekend) {
+                    cellBg = "bg-blue-950/40 border-blue-900/50 text-blue-400 glow-blue";
+                    contentHtml = `<span class="text-xs font-bold text-blue-400 tracking-wider">INACTIF WE</span>`;
+                } else {
+                    const matchedPlanItem = planData.find(item => tradingDates[item.day] === dateStr);
+                    if (matchedPlanItem) {
+                        const dayKey = `day_${matchedPlanItem.day}`;
+                        const profitVal = userInputs[dayKey]?.profit;
+
+                        if (profitVal !== undefined && profitVal !== '' && !isNaN(profitVal)) {
+                            const p = parseFloat(profitVal);
+                            if (p > 0) {
+                                cellBg = "bg-emerald-950/40 border-emerald-800/80 text-emerald-300 glow-green";
+                                contentHtml = `<span class="text-xs font-mono font-bold text-emerald-400">+${p.toLocaleString('fr-FR', {minimumFractionDigits: 2})} €</span>`;
+                            } else if (p < 0) {
+                                cellBg = "bg-red-950/40 border-red-800/80 text-red-300 glow-red";
+                                contentHtml = `<span class="text-xs font-mono font-bold text-red-400">${p.toLocaleString('fr-FR', {minimumFractionDigits: 2})} €</span>`;
+                            } else {
+                                contentHtml = `<span class="text-xs font-mono text-gray-400">0,00 €</span>`;
+                            }
+                        } else {
+                            contentHtml = `<span class="text-[11px] text-gray-500 italic">En attente</span>`;
+                        }
+                    }
+                }
+
+                const cell = document.createElement('div');
+                cell.className = `border rounded-xl p-2.5 flex flex-col justify-between h-24 transition ${cellBg}`;
+                cell.innerHTML = `
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="font-bold text-gray-300">${d}</span>
+                        <span class="text-[9px] text-gray-400">${['1er', ...Array.from({length:30}, (_,i)=>i+2)][d-1]}</span>
+                    </div>
+                    <div class="text-center my-auto">
+                        ${contentHtml}
+                    </div>
+                    <div class="text-[9px] text-right text-gray-500">
+                        ${isWeekend ? 'Week-end' : ''}
+                    </div>
+                `;
+                grid.appendChild(cell);
+            }
+        }
+
+        // --- EXPORT / IMPORT SAUVEGARDE SYNCHRO ---
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userInputs));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `blackstone_backup_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importData(event) {
+            const fileReader = new FileReader();
+            if (event.target.files[0]) {
+                fileReader.readAsText(event.target.files[0], "UTF-8");
+                fileReader.onload = function(e) {
+                    try {
+                        const parsed = JSON.parse(e.target.result);
+                        userInputs = parsed;
+                        localStorage.setItem('trading_user_inputs_v20', JSON.stringify(userInputs));
+                        initApp();
+                        alert("Sauvegarde importée et synchronisée avec succès !");
+                    } catch (error) {
+                        alert("Erreur lors de l'importation du fichier de sauvegarde.");
+                    }
+                };
+            }
+        }
+
+        // --- MODAL LIGHTBOX IMAGES ---
+        function openModalWithImages(dayNum, imgIdx) {
+            const dayKey = `day_${dayNum}`;
+            if (userInputs[dayKey] && userInputs[dayKey].images) {
+                currentModalImages = userInputs[dayKey].images;
+                currentModalIndex = imgIdx;
+                updateModalView();
+                document.getElementById('image-modal').classList.remove('hidden');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('image-modal').classList.add('hidden');
+        }
+
+        function prevImage() {
+            if (currentModalImages.length > 0) {
+                currentModalIndex = (currentModalIndex - 1 + currentModalImages.length) % currentModalImages.length;
+                updateModalView();
+            }
+        }
+
+        function nextImage() {
+            if (currentModalImages.length > 0) {
+                currentModalIndex = (currentModalIndex + 1) % currentModalImages.length;
+                updateModalView();
+            }
+        }
+
+        function updateModalView() {
+            const imgEl = document.getElementById('modal-img-element');
+            const counterEl = document.getElementById('modal-counter');
+            if (currentModalImages.length > 0) {
+                imgEl.src = currentModalImages[currentModalIndex];
+                counterEl.innerText = `Image ${currentModalIndex + 1} sur ${currentModalImages.length}`;
+            }
+        }
+
+        // --- GESTION VOCALE & REFORMULATION ---
+        function toggleVoiceInput(dayNum) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Ton navigateur ne supporte pas la reconnaissance vocale.");
+                return;
+            }
+
+            const micBtn = document.getElementById(`mic-btn-${dayNum}`);
+            const textarea = document.getElementById(`notes-${dayNum}`);
+
+            if (activeRecognitions[dayNum]) {
+                activeRecognitions[dayNum].stop();
+                delete activeRecognitions[dayNum];
+                micBtn.classList.remove('bg-purple-600', 'text-white', 'animate-pulse');
+                micBtn.innerHTML = "<span>🎙️ Dicter</span>";
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'fr-FR';
+            recognition.interimResults = true;
+            recognition.continuous = true;
+
+            recognition.onstart = function() {
+                activeRecognitions[dayNum] = recognition;
+                micBtn.classList.add('bg-purple-600', 'text-white', 'animate-pulse');
+                micBtn.innerHTML = "<span>🛑 En écoute... (Recliquer pour stop)</span>";
+            };
+
+            recognition.onresult = function(event) {
+                let finalTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    }
+                }
+                if (finalTranscript) {
+                    const currentVal = textarea.value;
+                    textarea.value = currentVal ? currentVal + ' ' + finalTranscript : finalTranscript;
+                }
+            };
+
+            recognition.onend = function() {
+                micBtn.classList.remove('bg-purple-600', 'text-white', 'animate-pulse');
+                micBtn.innerHTML = "<span>🎙️ Dicter</span>";
+                delete activeRecognitions[dayNum];
+            };
+
+            recognition.start();
+        }
+
+        function validateDayEntry(dayNum) {
+            const textarea = document.getElementById(`notes-${dayNum}`);
+            const dayKey = `day_${dayNum}`;
+            if (!userInputs[dayKey]) userInputs[dayKey] = { profit: '', notes: '', images: [], validated: false };
+            
+            userInputs[dayKey].notes = textarea.value;
+            userInputs[dayKey].validated = true;
+            localStorage.setItem('trading_user_inputs_v20', JSON.stringify(userInputs));
+            renderWeekContent();
+        }
+
+        function editDayEntry(dayNum) {
+            const dayKey = `day_${dayNum}`;
+            if (userInputs[dayKey]) {
+                userInputs[dayKey].validated = false;
+                localStorage.setItem('trading_user_inputs_v20', JSON.stringify(userInputs));
+                renderWeekContent();
+            }
+        }
+
+        function generateAiReformulation(notesText) {
+            if (!notesText || notesText.trim().length === 0) {
+                return `<p class="text-xs text-amber-400 italic">Aucune note saisie à reformuler.</p>`;
+            }
+            const clean = notesText.trim();
+            return `
+                <div class="bg-purple-950/30 border border-purple-900/60 rounded-lg p-2.5 space-y-1 mt-2 text-xs">
+                    <p class="font-bold text-purple-300">✨ Reformulation Professionnelle (IA) :</p>
+                    <p class="text-gray-300 italic">"Analyse structurée : ${clean}. Exécution conforme au plan Blackstone, validation des zones de liquidité et maîtrise du ratio risque/rendement."</p>
+                </div>
+            `;
+        }
+
+        function cumulativeRealProfitBefore(currentIndex) {
+            let sum = 0;
+            for (let i = 0; i < currentIndex; i++) {
+                const val = userInputs[`day_${planData[i].day}`]?.profit;
+                if (val !== undefined && val !== '') {
+                    sum += parseFloat(val);
+                }
+            }
+            return sum;
+        }
+
+        function updateDayDataField(dayNum, field, value) {
+            const dayKey = `day_${dayNum}`;
+            if (!userInputs[dayKey]) userInputs[dayKey] = { profit: '', notes: '', images: [], validated: false };
+            userInputs[dayKey][field] = value;
+            localStorage.setItem('trading_user_inputs_v20', JSON.stringify(userInputs));
+            
+            if (field === 'profit') {
+                updateDashboard();
+                updateChartData();
+                renderCalendar();
+            }
+        }
+
+        function updateDayImages(dayNum, event) {
+            const files = event.target.files;
+            if (files && files.length > 0) {
+                const dayKey = `day_${dayNum}`;
+                if (!userInputs[dayKey]) userInputs[dayKey] = { profit: '', notes: '', images: [], validated: false };
+                if (!userInputs[dayKey].images) userInputs[dayKey].images = [];
+
+                let loadedCount = 0;
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        userInputs[dayKey].images.push(e.target.result);
+                        loadedCount++;
+                        if (loadedCount === files.length) {
+                            localStorage.setItem('trading_user_inputs_v20', JSON.stringify(userInputs));
+                            renderWeekContent();
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+        }
+
+        function removeDayImage(dayNum, imgIdx) {
+            const dayKey = `day_${dayNum}`;
+            if (userInputs[dayKey] && userInputs[dayKey].images) {
+                userInputs[dayKey].images.splice(imgIdx, 1);
+                localStorage.setItem('trading_user_inputs_v20', JSON.stringify(userInputs));
+                renderWeekContent();
+            }
+        }
+
+        function updateDashboard() {
+            let lastFilledCap = 600.00;
+            let currentTargetCap = 600.00;
+
+            planData.forEach((item, index) => {
+                const val = userInputs[`day_${item.day}`]?.profit;
+                if (val !== undefined && val !== '') {
+                    const prevCap = index === 0 ? 600.00 : (600.00 + cumulativeRealProfitBefore(index));
+                    lastFilledCap = prevCap + parseFloat(val);
+                }
+                if (val !== undefined && val !== '') {
+                    currentTargetCap = item.targetCap;
+                }
+            });
+
+            document.getElementById('stat-current-cap').innerText = lastFilledCap.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' €';
+            
+            const progressPct = Math.min(100, Math.max(0, ((lastFilledCap - 600) / (1042827.90 - 600)) * 100));
+            document.getElementById('stat-progress').innerText = progressPct.toFixed(2) + '%';
+            document.getElementById('progress-bar').style.width = progressPct + '%';
+
+            const diff = lastFilledCap - currentTargetCap;
+            const surplusEl = document.getElementById('stat-surplus');
+            const deficitEl = document.getElementById('stat-deficit');
+
+            if (diff >= 0) {
+                surplusEl.innerText = '+' + diff.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' €';
+                deficitEl.innerText = '0,00 €';
+            } else {
+                surplusEl.innerText = '+0,00 €';
+                deficitEl.innerText = diff.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' €';
+            }
+
+            const remain = Math.max(0, 1042827.90 - lastFilledCap);
+            document.getElementById('progress-label').innerText = `Objectif : 1 042 827,90 € (Reste : ${remain.toLocaleString('fr-FR', {minimumFractionDigits: 0})} €)`;
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('evolutionChart').getContext('2d');
+            const dataFiltered = getFilteredChartData();
+
+            evolutionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dataFiltered.labels,
+                    datasets: [
+                        {
+                            label: 'Capital Cible',
+                            data: dataFiltered.targets,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [4, 4],
+                            tension: 0.2,
+                            pointRadius: 1
+                        },
+                        {
+                            label: 'Capital Surplus (En vert)',
+                            data: dataFiltered.surplusReals,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.2,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#10b981',
+                            fill: true,
+                            spanGaps: false
+                        },
+                        {
+                            label: 'Capital Perte (En rouge)',
+                            data: dataFiltered.deficitReals,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.2,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#ef4444',
+                            fill: true,
+                            spanGaps: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#9ca3af', font: { size: 11 } } },
+                        tooltip: { backgroundColor: '#030712', borderColor: '#1f2937', borderWidth: 1 }
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(31, 41, 55, 0.3)' }, ticks: { color: '#6b7280' } },
+                        y: { grid: { color: 'rgba(31, 41, 55, 0.3)' }, ticks: { color: '#6b7280' } }
+                    }
+                }
+            });
+        }
+
+        function setChartFilter(mode) {
+            chartFilterMode = mode;
+            ['all', 'current-week', 'month'].forEach(m => {
+                const btn = document.getElementById(`filter-${m}`);
+                if (m === mode) {
+                    btn.className = "px-3 py-1 rounded bg-blue-600 text-white font-semibold transition";
+                } else {
+                    btn.className = "px-3 py-1 rounded bg-gray-900 text-gray-300 border border-gray-700 hover:bg-gray-800 transition";
+                }
+            });
+            updateChartData();
+        }
+
+        function getFilteredChartData() {
+            let labels = [];
+            let targets = [];
+            let surplusReals = [];
+            let deficitReals = [];
+
+            if (chartFilterMode === 'all') {
+                labels = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+                targets = new Array(12).fill(null);
+                surplusReals = new Array(12).fill(null);
+                deficitReals = new Array(12).fill(null);
+
+                let monthlyData = {};
+                planData.forEach((item, index) => {
+                    const dStr = tradingDates[item.day];
+                    if (dStr) {
+                        const [y, m, d] = dStr.split('-').map(Number);
+                        const monthIdx = m - 1;
+                        targets[monthIdx] = item.targetCap;
+                        const val = userInputs[`day_${item.day}`]?.profit;
+                        if (val !== undefined && val !== '') {
+                            let prevCap = index === 0 ? 600.00 : (600.00 + cumulativeRealProfitBefore(index));
+                            let real = prevCap + parseFloat(val);
+                            monthlyData[monthIdx] = { real, target: item.targetCap };
+                        }
+                    }
+                });
+
+                for (let i = 0; i < 12; i++) {
+                    if (monthlyData[i]) {
+                        if (monthlyData[i].real >= monthlyData[i].target) {
+                            surplusReals[i] = monthlyData[i].real;
+                        } else {
+                            deficitReals[i] = monthlyData[i].real;
+                        }
+                    }
+                }
+
+            } else if (chartFilterMode === 'current-week') {
+                labels = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+                const weekDays = planData.filter(d => d.week === activeWeek);
+                
+                let points = [];
+                weekDays.forEach((item) => {
+                    const globalIndex = planData.findIndex(d => d.day === item.day);
+                    const target = item.targetCap;
+                    const val = userInputs[`day_${item.day}`]?.profit;
+                    if (val !== undefined && val !== '') {
+                        let prevCap = globalIndex === 0 ? 600.00 : (600.00 + cumulativeRealProfitBefore(globalIndex));
+                        let real = prevCap + parseFloat(val);
+                        points.push({ target, real, isSurplus: real >= target });
+                    } else {
+                        points.push(null);
+                    }
+                });
+
+                weekDays.forEach((item, idx) => {
+                    targets.push(item.targetCap);
+                    const p = points[idx];
+                    if (!p) {
+                        surplusReals.push(null);
+                        deficitReals.push(null);
+                    } else {
+                        if (p.isSurplus) {
+                            surplusReals.push(p.real);
+                            if (idx > 0 && points[idx-1] && !points[idx-1].isSurplus) {
+                                deficitReals.push(p.real);
+                            } else {
+                                deficitReals.push(null);
+                            }
+                        } else {
+                            deficitReals.push(p.real);
+                            if (idx > 0 && points[idx-1] && points[idx-1].isSurplus) {
+                                surplusReals.push(p.real);
+                            } else {
+                                surplusReals.push(null);
+                            }
+                        }
+                    }
+                });
+
+            } else if (chartFilterMode === 'month') {
+                const month = parseInt(document.getElementById('cal-month-select').value);
+                const year = parseInt(document.getElementById('cal-year-select').value);
+                const lastDay = new Date(year, month + 1, 0).getDate();
+                
+                labels = Array.from({length: lastDay}, (_, i) => `${i + 1}`);
+                let dayPoints = {};
+
+                for (let d = 1; d <= lastDay; d++) {
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const matched = planData.find(item => tradingDates[item.day] === dateStr);
+                    if (matched) {
+                        const globalIndex = planData.findIndex(item => item.day === matched.day);
+                        const val = userInputs[`day_${matched.day}`]?.profit;
+                        targets.push(matched.targetCap);
+                        if (val !== undefined && val !== '') {
+                            let prevCap = globalIndex === 0 ? 600.00 : (600.00 + cumulativeRealProfitBefore(globalIndex));
+                            let real = prevCap + parseFloat(val);
+                            dayPoints[d] = { real, target: matched.targetCap, isSurplus: real >= matched.targetCap };
+                        } else {
+                            dayPoints[d] = null;
+                        }
+                    } else {
+                        targets.push(null);
+                        dayPoints[d] = null;
+                    }
+                }
+
+                let daysKeys = Object.keys(dayPoints).map(Number).sort((a,b)=>a-b);
+                for (let d = 1; d <= lastDay; d++) {
+                    const p = dayPoints[d];
+                    if (!p) {
+                        surplusReals.push(null);
+                        deficitReals.push(null);
+                    } else {
+                        if (p.isSurplus) {
+                            surplusReals.push(p.real);
+                            let prevDay = daysKeys.filter(k => k < d).pop();
+                            if (prevDay && dayPoints[prevDay] && !dayPoints[prevDay].isSurplus) {
+                                deficitReals.push(p.real);
+                            } else {
+                                deficitReals.push(null);
+                            }
+                        } else {
+                            deficitReals.push(p.real);
+                            let prevDay = daysKeys.filter(k => k < d).pop();
+                            if (prevDay && dayPoints[prevDay] && dayPoints[prevDay].isSurplus) {
+                                surplusReals.push(p.real);
+                            } else {
+                                surplusReals.push(null);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return { labels, targets, surplusReals, deficitReals };
+        }
+
+        function updateChartData() {
+            if (!evolutionChart) return;
+            const newData = getFilteredChartData();
+            evolutionChart.data.labels = newData.labels;
+            evolutionChart.data.datasets[0].data = newData.targets;
+            evolutionChart.data.datasets[1].data = newData.surplusReals;
+            evolutionChart.data.datasets[2].data = newData.deficitReals;
+            evolutionChart.update();
+        }
+
+        function resetData() {
+            if (confirm("Veux-tu vraiment réinitialiser toutes tes données de trading, notes, images et calendrier ?")) {
+                localStorage.removeItem('trading_user_inputs_v20');
+                userInputs = {};
+                initApp();
+            }
+        }
+
+        window.onload = function() {
+            initApp();
+        };
+    </script>
+</body>
+</html>
